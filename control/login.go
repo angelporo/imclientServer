@@ -6,7 +6,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	. "imClientServer/config"
 	"github.com/xormplus/xorm"
-	"errors"
+	// "errors"
+	"fmt"
 )
 
 
@@ -30,25 +31,32 @@ type UserInfoData struct {
 type userItem struct {
 	Age int `json:"age"`
 	Sex int `json:"sex"`
-	Id int64 `json:"id"`
+	Mobile string `json:"mobile"`
 	Avatar string `json:"avatar"`
 	Name string `json:"name"`
 }
 
 type LoginData struct {
-	User User
-	Friend []userItem
-	RecentConcat []ChatRoomItem
+	User User `json:"user"`
+	Friend []userItem `json:"friend"`
+	RecentConcat []ChatRoomItem `json:"recentConcat"`
 }
 
-// 获取好友id
-func GetUserFriendById (id int64, engine *xorm.Engine) ([]UserRelationShip , error){
-	var friend []UserRelationShip
-	err := engine.Where("id = ?", id).Find(&friend)
-	if err != nil {
-		return friend, errors.New(err.Error())
-	}
-	return friend, nil
+// 获取好友userName
+func GetUserFriendById (userName string, engine *xorm.Engine) (chan []UserRelationShip , error){
+	friendNames := make(chan []UserRelationShip, 1)
+	var friend  []UserRelationShip
+	go func (){
+		err := engine.Where("user_name = ?", userName).Find(&friend)
+		if err != nil {
+			//这里使用panic
+			fmt.Println("获取用户好友列表失败!")
+
+		}
+		friendNames <- friend
+	}()
+
+	return friendNames, nil
 }
 
 
@@ -76,6 +84,7 @@ func GetUserInfo (c *gin.Context) {
 		}
 	}
 	// TODO: 用户手机号检测
+	// TODO: 添加用户二维码用作转账和收款
 	engine, err := xorm.NewEngine("mysql", DATABASE_LOGIN)
 	engine.ShowSQL(true)
 	engine.ShowExecTime(true)
@@ -84,16 +93,6 @@ func GetUserInfo (c *gin.Context) {
 			"code": -1,
 			"msg": "系统发生错误",
 			"content": "",
-		})
-		return
-	}
-	// 同步数据表结构
-	err = engine.Sync2(new(User))
-	if err != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg": "同步数据表错误",
-			"content": err.Error(),
 		})
 		return
 	}
@@ -112,7 +111,7 @@ func GetUserInfo (c *gin.Context) {
 		c.JSON(200, gin.H{
 			"code": -1,
 			"msg": "没有这个手机号!",
-			"content": res,
+			"content": "",
 		})
 		return
 	}
@@ -124,42 +123,45 @@ func GetUserInfo (c *gin.Context) {
 		})
 		return
 	}
-	id := res.User.Id
-	friendIds, err := GetUserFriendById(id, engine)
+	userName := res.User.Name
+	friendChan, err := GetUserFriendById(userName, engine)
+	friendUserNames := <- friendChan
 	if err != nil {
 		c.JSON(200, gin.H{
-			"code": -6,
+			"code": -1,
 			"msg": err.Error(),
-			"content": friendIds,
+			"content": friendUserNames,
 		})
 		return
 	}
+
 	// 获取好友全部信息
-	friendInfo, err := GetFriendInfoById(friendIds, engine)
+	friendInfo, err := GetFriendInfoByUserName(friendUserNames, engine)
 	if err != nil {
 		c.JSON(200, gin.H{
-			"code": -6,
-			"msg": err.Error(),
-			"content": friendInfo,
+			"code": -1,
+			"msg": "登录获取全部好友信息失败",
+			"content": err.Error(),
 		})
 		return
 	}
 	// 获取用户好友信息
 	res.Friend = friendInfo
 	// 获取最近联系人信息
-	recentContent, err := GetRecentConcatById(id, engine)
+	recentContent, err := GetRecentConcatById(userName, engine)
 	if err != nil {
 		c.JSON(200, gin.H{
 			"code": -1,
-			"msg": err.Error(),
+			"msg": "获取最近联系人信息失败",
 			"content": "",
+			"errDescription":err.Error(),
 		})
 		return
 	}
 	res.RecentConcat = recentContent
 	// 登录成功
 	c.JSON(200, gin.H{
-		"code": -1,
+		"code": 0,
 		"msg": "登录成功!",
 		"content": res,
 	})

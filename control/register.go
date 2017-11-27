@@ -26,7 +26,7 @@ const (
 // 客户端传参数 模型绑定
 type Register struct {
 	UserName string `json:"userName" binding:"required"`
-	NickName string `json:"nickName"`
+	NickName string `json:"nickName" binding:"required"`
 	PassWord string `json:"passWord" binding:"required"`
 	UserMobile string `json:"mobile" binding:"required"`
 }
@@ -46,34 +46,41 @@ type User struct {
 	Created time.Time `xorm:"created notnull"`
 	Updated time.Time `xorm:"updated"`
 	Uuid string `xorm:"notnull"`
+	Activated bool `xorm:"notnull bool"` // 是否在线
 }
-
+// 用户好友表
 type UserRelationShip struct {
 	Index int64 `xorm:"pk notnull autoincr unique"`
-	Id int64 `xorm:"notnull"`
-	Friend_Id int64 `xorm:"notnull"`
+	UserId int64  `xorm:"notnull bigint"`
+	UserName string `xorm:"notnull varchar(255)"`
+	Friend_userName string `xorm:"notnull varchar(255)"`
 }
 
 // 环信返回结果type
 type Huanxin struct {
-	Data
+	HxSuccessData
 	Entities []RegisterSuccessContent
 }
 
-type Data struct {
-	ApplicationName string
-	Duration int
-	Error string
-	Error_description string
-	Exception string
-	Path string
-	Action string
-	Organization string
-	Uri string
-	Timestamp int
-	Application string
+type HxSuccessData struct {
+	ApplicationName string `json:"applicationName"`
+	Duration int `json:"duration"`
+	Path string `json:"path"`
+	Action string `json:"action"`
+	Organization string `json:"organization"`
+	Uri string `json:"uri"`
+	Timestamp int `json:"timestamp"`
+	Application string `json:"application"`
+	DataFaild
 }
 
+type DataFaild struct {
+	Error string `json:"error"`
+	Error_description string `json:"error_description"`
+	Exception string `json:"exception"`
+}
+
+// 注册成功环信返回主体类型
 type RegisterSuccessContent struct {
 	Activated bool
 	Created int
@@ -163,13 +170,16 @@ func RegisterUserByHuanxing (name string, passWord string, nickname string) ([]b
 }
 
 
-func GetToken () (interface{}, interface{}) {
+func GetToken () (interface{}, error) {
 	var data interface{}
+retryOpenToken:
 	f, err := os.OpenFile(TOKEN_FILE_NAME, os.O_APPEND, 0666)
 	if err != nil {
-		err := errors.New("打开token文件失败!")
-		GetAbleToken()
-		return "", err
+		// err := errors.New("打开token文件失败!")
+		_, getErr := GetAbleToken()
+		if getErr != nil {
+			goto retryOpenToken
+		}
 	}
 	fileInfo, err := os.Stat(TOKEN_FILE_NAME)
 	if err != nil {
@@ -285,52 +295,21 @@ func RegisterListen(c *gin.Context){
 	}
 
 	// 同步用户数据表结构
-	errA := engine.Sync2(new(User))
+	errA := engine.Sync2(
+		new(User),
+		// new(ChatRoomGroupAffiliations), // 只有单聊了群聊,  没有聊天室
+		new(ChatGroupInfo),
+		new(ChatHistory),
+		new(GroupMembersContent), // 群组聊天详情
+		new(UserRelationShip),
+		new(GroupRelationShip), // 群组聊天关系
+		new(RecentConcat),
+		new(MembersItem))
 	if errA != nil {
 		c.JSON(200, gin.H{
 			"code": -1,
 			"msg": "同步数据表错误",
-			"content": "",
-		})
-		return
-	}
-
-	errB := engine.Sync2(new(ChatRoom))
-	if errB != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg": errB.Error(),
-			"content": "",
-		})
-		return
-	}
-
-	errC := engine.Sync2(new(ChatRoomGroupAffiliations))
-	if errC != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg": "同步群聊用户表出错!",
-			"content": "",
-		})
-		return
-	}
-
-	errD := engine.Sync2(new(ChatHistory))
-	if errD != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg": "同步聊天记录数据表",
-			"content": "",
-		})
-		return
-	}
-
-	errE := engine.Sync2(new(UserRelationShip))
-	if errE != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg": "同步好用数据表错误",
-			"content": "",
+			"content": errA.Error(),
 		})
 		return
 	}
@@ -338,7 +317,7 @@ func RegisterListen(c *gin.Context){
 	mobile := &User{
 		Mobile: paramJson.UserMobile,
 	}
-	has, err := engine.Exist(mobile)
+	has, _ := engine.Exist(mobile)
 	if has {
 		c.JSON(200, gin.H{
 			"code": -1,
@@ -382,7 +361,7 @@ func RegisterListen(c *gin.Context){
 		return
 	}
 	if HuanxinData.Entities == nil {
-		ReturnErr(c, HuanxinData.Error)
+		CheckHXErr(c, HuanxinData.Error, "环信注册失败")
 		return
 	}
 	HuanxinResContent := HuanxinData.Entities
@@ -395,8 +374,9 @@ func RegisterListen(c *gin.Context){
 		PassWord: paramJson.PassWord,
 		Money: 0,
 		Sex: 1, // 默认性别
-		Avatar: "touxiang",
+		Avatar: "/static/default_avatar.png", // 默认头像为相对路径
 		Uuid: userUuid,
+		Activated: true,
 	}
 	_ , err1 := engine.Insert(user)
 	if err1 != nil {

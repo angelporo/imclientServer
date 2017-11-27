@@ -7,10 +7,9 @@ package config
 
 // 系统错误码对照表
 // 0 一切正常
-// 10001 数据库查询出错
+// -1 内部函数返回错误 content中返回函数中错误内容
 // 10002 参数与数据库不相符
 // 10000 系统发生错误
-
 
 // token 是否过期, 过期(1), 没有过期(0)
 
@@ -24,4 +23,6 @@ const (
 	APP_NAME = "xinxin-imclient"
 	MOBILE_ERR_MSG = "手机号码不正确!"
 	USERNAME_ERR_MSG = "用户名称不能为空!"
+	ASSETS_FILE = "/assets" // 静态资源库
+	IMAGE_FILE = "/assets" // 请求静态文件路由
 )

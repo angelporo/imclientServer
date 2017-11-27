@@ -38,18 +38,23 @@ func main() {
 	// get user all info
 	// authorized := r.Group("/")
 	// 开启static file
-	router := gin.Default()
-	router.Static("/", "./")
-	router.StaticFS("/avatar", http.Dir("user_img"))
-	// router.StaticFile("/default_avatar", "default_avatar.jpg")
+
+	// router := gin.Default()
+	r.StaticFS("/files", http.Dir("./static"))
+	// r.Static("/files", "./assets")
+	// 给指定文件定制路由
+	// r.StaticFile("/image", "./assets/1.png")
 
 	r.Use(HuanxingTokenMiddleWare())
 	{
 		r.POST("/login", control.GetUserInfo) // 登录接口 ,  登录后返回相关数据
 		// the create new user
 		r.PUT("/user", control.RegisterListen) // 注册接口
-		r.Run(":8080")
+		r.POST("/sendmsg", control.ListenSendMsg) // 发送消息
+		r.POST("/addfriend", control.AddFriendToUser) // 给用户添加好友
+		r.POST("/creategroup", control.CreateGoup) // 用户创建群组聊天
+		r.POST("/getgroupinfo", control.GetGroupInfoByGroupId) // 获取用户群组聊天详情
+
 	}
 	r.Run(":8080")
-	router.Run(":8080")
 }
