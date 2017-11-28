@@ -7,7 +7,7 @@ type MembersItem struct {
 	Member string `xorm:"varchar(255)" json:"member"`
 }
 
-// 最近聊天群成员信息
+// 最近聊天群信息 包括成员用户名列表
 type GroupMembersContent struct {
 	Id string
 	Index int `xorm:"pk autoincr unique notnull" json:"-"`

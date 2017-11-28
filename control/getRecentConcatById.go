@@ -11,8 +11,9 @@ import (
 type RecentConcat struct {
 	Id int64
 	RoomType int64 `xorm:"notnull int"` // 聊天房间类型(1:单聊, 2群聊)
-	UserName string `xorm:"varchar(255) notnull"`
-	RoomId string `xorm:"varchar(255) notnull"` //单聊(用户名称字段) 群聊(群聊id)
+	UserName string `xorm:"varchar(255) notnull" json:"userName"`
+	TargetUserName string `xorm:"varchar(255) notnull" json:"targetUserName"` //单聊(用户名称字段) 群聊(群聊id)
+	IsTop bool `xomr:"bool notnull" json:"isTop"`
 }
 
 // 聊天室和群组id
@@ -61,15 +62,22 @@ type ChatHistory struct {
 	Avatar string `xorm:"varchar(255)" json:"avatar"`
 }
 
-// 最近联系聊天室内容以及聊天记录
-type ChatRoomItem struct {
-	ChatRoomInfo ChatGroupInfo `json:"chatRoomInfo"` // 聊天室内容
-	ChatRoomHistory []ChatHistory `json:"chatRoomHistory"` // 聊天室聊天记录
-	GroupMembers []GroupMembersContent `json:"members"` // 群组成员列表
-	ChatRoomMembers []interface{} `json:"chatRoomMembers"` // 聊天室成员列表
+type ApiRecentChatInfo struct{
+	ChatType *string `json:"chatType"`
+	ChatGroup GroupMembersContent `json:"chatGroup"`
+	User User `json:"user"`
 }
 
-// 获取最近联系人数据 通过用户名称
+
+// 最近联系聊天室内容以及聊天记录
+type ChatRoomItem struct {
+	// ChatRoomInfo ChatGroupInfo `json:"chatRoomInfo"` // 聊天室内容
+	ChatRoomHistory []ChatHistory `json:"chatRoomHistory"` // 聊天室聊天记录
+	GroupMembers ApiRecentChatInfo `json:"members"` // 群聊和单聊具体详情
+	// ChatRoomMembers []interface{} `json:"chatRoomMembers"` // 聊天室成员列表
+}
+
+// 获取单聊最近联系人数据 通过用户名称
 func GetRecentConcatById (userName string, engine *xorm.Engine) ([]ChatRoomItem, error) {
 
 	var (
@@ -78,7 +86,7 @@ func GetRecentConcatById (userName string, engine *xorm.Engine) ([]ChatRoomItem,
 	)
 
 	// 获取用户最近聊天室id
-	err1 := engine.Where("user_name = ?", userName).Cols("room_id").Find(&RecentConcatInfo)
+	err1 := engine.Where("user_name = ?", userName).Cols("target_user_name","room_type").Find(&RecentConcatInfo)
 	if err1 != nil {
 		return r, errors.New(err1.Error())
 	}
@@ -87,32 +95,48 @@ func GetRecentConcatById (userName string, engine *xorm.Engine) ([]ChatRoomItem,
 
 	res := make([]ChatRoomItem, RecentSum)
 
+	// 同步聊天记录数据表
+	// errD := engine.Sync2(new(ChatHistory))
+	// if errD != nil {
 
-	errD := engine.Sync2(new(ChatHistory))
-	if errD != nil {
-
-		return r, errors.New(errD.Error())
-	}
+	// 	return r, errors.New(errD.Error())
+	// }
 	// 遍历用户最近联系用户id
 	for i := 0; i < RecentSum; i++ {
 		// TODO: RoomId是1 查询RoomId(userName)用户信息
 		// TODO: RoomId是2 查询群详情
-		roomId := RecentConcatInfo[i].RoomId
-		fmt.Println(roomId)
-		// 通过roomid查找聊天室信息
-		has, err2 := engine.Table("chat_group_info").Where("id = ?", roomId).Get(&res[i].ChatRoomInfo)
-		if err2 != nil {
-			return r, errors.New(err2.Error())
+		roomIdOrUserName := RecentConcatInfo[i].TargetUserName
+		roomType := RecentConcatInfo[i].RoomType
+		var userType string = "users"
+		var chatGroupType string = "chatgroups"
+		var users int64 = 1
+		var chatGroups int64 = 2
+		if roomType == chatGroups{
+			// 查询群聊详情
+			fmt.Printf("userName:%v /n roomtype:%v",roomIdOrUserName, roomType)
+			// 查询群聊详情 group_members_content
+			// 通过roomid查找聊天室信息
+			res[i].GroupMembers.ChatType = &chatGroupType
+			has, err2 := engine.Table("group_members_content").Where("id = ?", roomIdOrUserName).Get(&res[i].GroupMembers.ChatGroup)
+			if err2 != nil {
+				return r, errors.New(err2.Error())
+			}
+			if !has {
+				return r, errors.New("没有查到聊天室信息")
+			}
 		}
-		if !has {
-			// return r, errors.New("没有查到聊天室信息")
+		if roomType == users {
+			// 查询用户信息 user表
+			res[i].GroupMembers.ChatType = &userType
+			has, err2 := engine.Where("name = ?", roomIdOrUserName).Cols("name","mobile","avatar","activated").Get(&res[i].GroupMembers.User)
+			if err2 != nil {
+				return r, errors.New(err2.Error())
+			}
+			if !has {
+				return r, errors.New("没有查到聊天室信息")
+			}
 		}
 		// 获取聊天记录
-		err3 := engine.Table("chat_history").Where("room_id = ?", roomId).Find(&res[i].ChatRoomHistory)
-		if err3 != nil {
-			return r, errors.New(err3.Error())
-		}
-
 	}
 	// TODO: 根据聊天房间类型 获取用户聊天内容
 	return res, nil

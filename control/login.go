@@ -6,8 +6,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	. "imClientServer/config"
 	"github.com/xormplus/xorm"
-	// "errors"
-	"fmt"
+	// "context"
+	"errors"
+	// "reflect"
 )
 
 
@@ -43,19 +44,36 @@ type LoginData struct {
 }
 
 // 获取好友userName
-func GetUserFriendById (userName string, engine *xorm.Engine) (chan []UserRelationShip , error){
-	friendNames := make(chan []UserRelationShip, 1)
+func GetUserFriendById (userName string, engine *xorm.Engine) ([]UserRelationShip , error ){
+	// 协程中出错
+	friendNames := make([]UserRelationShip, 1)
 	var friend  []UserRelationShip
-	go func (){
-		err := engine.Where("user_name = ?", userName).Find(&friend)
+	// findErr := make(chan error, 1)
+	// defer func () {
+	//	if err := recover(); err != nil {
+	//		panic(err)
+	//	}
+	// }()
+
+	// go func () {
+		err := engine.Where("user_name = ?", userName ).Find(&friend)
 		if err != nil {
-			//这里使用panic
-			fmt.Println("获取用户好友列表失败!")
-
+			return friendNames,errors.New(err.Error())
+		}else{
+			friendNames = friend
 		}
-		friendNames <- friend
-	}()
+	// }()
 
+	// select{
+	// case e := <-findErr:
+	//	close(findErr)
+	//	close(friendNames)
+	//	return nil,e
+	// case s := <-friendNames:
+	//	close(findErr)
+	//	close(friendNames)
+	//	return s,nil
+	// }
 	return friendNames, nil
 }
 
@@ -65,8 +83,18 @@ func GetUserFriendById (userName string, engine *xorm.Engine) (chan []UserRelati
 // 3.查询好友信息
 // 4.查询最近联系人
 // 5.查询聊天内容
-// http http://localhost:8080/login mobile='18303403747' passWord="angel"
+// http http://localhost:8080/login mobile='18303403737' passWord="angel"
 func GetUserInfo (c *gin.Context) {
+	// defer func () {
+	//	if err := recover(); err != nil {
+	//		c.JSON(200, gin.H{
+	//			"code": -3,
+	//			"msg": err,
+	//			"content": "",
+	//		})
+	//	}
+	// }()
+
 	var (
 		// password string
 		json Login
@@ -86,7 +114,7 @@ func GetUserInfo (c *gin.Context) {
 	// TODO: 用户手机号检测
 	// TODO: 添加用户二维码用作转账和收款
 	engine, err := xorm.NewEngine("mysql", DATABASE_LOGIN)
-	engine.ShowSQL(true)
+	// engine.ShowSQL(true)
 	engine.ShowExecTime(true)
 	if err != nil {
 		c.JSON(200, gin.H{
@@ -124,13 +152,12 @@ func GetUserInfo (c *gin.Context) {
 		return
 	}
 	userName := res.User.Name
-	friendChan, err := GetUserFriendById(userName, engine)
-	friendUserNames := <- friendChan
+	friendUserNames, err := GetUserFriendById(userName, engine)
 	if err != nil {
 		c.JSON(200, gin.H{
 			"code": -1,
-			"msg": err.Error(),
-			"content": friendUserNames,
+			"msg": "获取用户好友用户名出错",
+			"content": err.Error(),
 		})
 		return
 	}
@@ -147,7 +174,7 @@ func GetUserInfo (c *gin.Context) {
 	}
 	// 获取用户好友信息
 	res.Friend = friendInfo
-	// 获取最近联系人信息
+	// 获取最近联系人详情信息
 	recentContent, err := GetRecentConcatById(userName, engine)
 	if err != nil {
 		c.JSON(200, gin.H{

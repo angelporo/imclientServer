@@ -88,8 +88,11 @@ type HXsendMsgContent struct {
 }
 
 
-// 发送消息
-// http POST http://localhost:8080/sendmsg target_type=users target:='["liyuan2", "liyuan1"]' from=liyuan msg:='{"type":"tx9t","msg":"这才是消息内容"}'
+/*发送消息
+ * http POST http://localhost:8080/sendmsg target_type=users target:='["liyuan2", "liyuan1"]' from=liyuan msg:='{"type":"tx9t","msg":"这才是消息内容"}'
+ *
+ * arget_type == "chatgroups" 群聊 target_type == "users" 单聊
+*/
 func ListenSendMsg (c *gin.Context) {
 	var (
 		cInfo  SendRequest
@@ -132,9 +135,8 @@ retrySendMsg:
 			return
 		}
 	}
-	// 返回结果给用户,
+	// 返回结果给用户
 	rData(0, "", HXresponse)
-
 
 	// 并发写入相关数据
 	go func () {
@@ -149,18 +151,20 @@ retrySendMsg:
 		if cInfo.TargetType == "chatgroups" {
 			roomType = 2
 		}
-
-		// 不管单聊还是群聊, 写入最近聊天关系表
 		rencent := &RecentConcat{
 			RoomType: roomType,
 			UserName: cInfo.From,
-			RoomId: roomTarget[0],
+			TargetUserName: roomTarget[0],
+			IsTop: false,
 		}
+		// 单聊写入单聊关系表  群聊忽略
+		// 单聊需要检测是否存在
 		// 检测是否已存在
 		has, isExistRencentErr := engine.Exist(rencent)
 		if has {
 			return
 		}
+		// 如果不存在,rencent.isTop属性默认为false
 		if isExistRencentErr != nil {
 			fmt.Printf("检测最近聊天是否存在失败,失败原因:%v",isExistRencentErr.Error())
 			return
@@ -172,6 +176,5 @@ retrySendMsg:
 			rData(-1, "写入最近联系关系表错误!", inserErr.Error())
 			return
 		}
-		// 写入最近联系人详情表信息
 	}()
 }
