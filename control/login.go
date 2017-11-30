@@ -180,8 +180,7 @@ func GetUserInfo (c *gin.Context) {
 		c.JSON(200, gin.H{
 			"code": -1,
 			"msg": "获取最近联系人信息失败",
-			"content": "",
-			"errDescription":err.Error(),
+			"content": err.Error(),
 		})
 		return
 	}

@@ -54,7 +54,6 @@ func main() {
 		r.POST("/addfriend", control.AddFriendToUser) // 给用户添加好友
 		r.POST("/creategroup", control.CreateGoup) // 用户创建群组聊天
 		r.POST("/getgroupinfo", control.GetGroupInfoByGroupId) // 获取用户群组聊天详情
-
 	}
 	r.Run(":8080")
 }

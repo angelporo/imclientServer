@@ -3,7 +3,6 @@
 package control
 
 import (
-	// "time"
 	"github.com/xormplus/xorm"
 	"github.com/gin-gonic/gin"
 	"errors"
@@ -14,13 +13,10 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"fmt"
+	"time"
 )
-
 // 消息属性类型
 type SendMsgRequest struct {
-	TargetType string `json:"target_type" binding:"required"` // users 给用户发消息。chatgroups: 给群发消息，chatrooms: 给聊天室发消息
-	Target []string `json:"target" binding:"required"` // 注意这里需要用数组，数组长度建议不大于20，即使只有一个用户，也要用数组 ['u1']，给用户发送时数组元素是用户名，给群组发送时.数组元素是groupid
-	From string `json:"from" binding:"required"`  //表示消息发送者。无此字段Server会默认设置为"from":"admin"，有from字段但值为空串("")时请求失败
 }
 
 // 消息内容类型
@@ -29,10 +25,19 @@ type MassageContent struct {
 	Msg string `json:"msg" binding:"required"` // 消息内容
 }
 
+type ExtMsg struct {
+	FromAvatar string `json:"fromAvatar" binding:"required"` // 发送者头像
+	SendTime int `json:"sendTime" binding:"required"` // 发送者本机当前时间
+}
+
 // 环信服务器接受类型
 type SendRequest struct {
-	SendMsgRequest
+	Ext ExtMsg `json:"ext"`
+	TargetType string `json:"target_type" binding:"required"` // users 给用户发消息。chatgroups: 给群发消息，chatrooms: 给聊天室发消息
+	Target []string `json:"target" binding:"required"` // 注意这里需要用数组，数组长度建议不大于20，即使只有一个用户，也要用数组 ['u1']，给用户发送时数组元素是用户名，给群组发送时.数组元素是groupid
+	From string `json:"from" binding:"required"`  //表示消息发送者。无此字段Server会默认设置为"from":"admin"，有from字段但值为空串("")时请求失败
 	Msg MassageContent `json:"msg"`
+	RecentId string `json:"recentId" binding:"required"`
 }
 
 
@@ -44,7 +49,7 @@ func SendMsgToHuanxinServer (requestBody *SendRequest) ([]byte, error) {
 
 	body := strings.NewReader(string(requestByte))
 	client := &http.Client{}
-	path := HUANXIN_DOMAIN + ORG_NAME + "/" + APP_NAME + "/jmessages"
+	path := HUANXIN_DOMAIN + ORG_NAME + "/" + APP_NAME + "/messages"
 	req, err_req := http.NewRequest("POST", path, body)
 
 	token, getTokenErr := GetToken()
@@ -68,12 +73,30 @@ func SendMsgToHuanxinServer (requestBody *SendRequest) ([]byte, error) {
 	return res, nil
 }
 
+type SendContent struct {
+	Created int `json:"created"`
+	From string `json:"from"`
+	Modified int `json:"modified"`
+	Msg SendMsg `json:"msg"`
+	Target []string `json:"target"`
+	Target_type string `json:"target_type"`
+	Type string `json:"type"`
+	FromAvatar string `json:"fromAvatar"`
+	// FromAvatar string `json:"fromAvatar"`
+	// TargetAvatar string `json:"targetAvatar"`
+}
+
+type SendMsg struct{
+	Type string `json:"type"`
+	Msg string `json:"msg"`
+}
+
 type HXSendMsgSuccess struct {
 	Action string `json:"action"`
 	Application string `json:"application"`
 	Param map[string]string `json:"param"`
 	Uri string `json:"uri"`
-	Entities []interface{} `json:"entities"`
+	Entities []SendContent `json:"entities"`
 	Data map[string]string `json:"data"`
 	Timestamp int `json:"timestamp"`
 	Duration int `json:"duration"`
@@ -87,15 +110,14 @@ type HXsendMsgContent struct {
 	HXSendMsgSuccess
 }
 
-
 /*发送消息
- * http POST http://localhost:8080/sendmsg target_type=users target:='["liyuan2", "liyuan1"]' from=liyuan msg:='{"type":"tx9t","msg":"这才是消息内容"}'
+ * http POST http://localhost:8080/sendmsg target_type=users target:='["liyuan2", "liyuan1"]' from=liyuan msg:='{"type":"txt","msg":"这才是消息内容"}' recentId=3 ext:='{"avatar":"hahah"}'
  *
  * arget_type == "chatgroups" 群聊 target_type == "users" 单聊
 */
 func ListenSendMsg (c *gin.Context) {
 	var (
-		cInfo  SendRequest
+		cInfo SendRequest
 	)
 	rData := func(code interface{}, msg interface{}, desc interface{}) {
 		c.JSON(200, gin.H{
@@ -106,7 +128,7 @@ func ListenSendMsg (c *gin.Context) {
 	}
 	err := c.Bind(&cInfo)
 	if err != nil {
-		rData(-1, "参数出错!检查数据", err.Error())
+		rData(-1, "参数出错!检查数据" + err.Error(), err.Error())
 		return
 	}
 retrySendMsg:
@@ -135,6 +157,12 @@ retrySendMsg:
 			return
 		}
 	}
+
+	if HXresponse.Data == nil {
+		rData(-1, "发送失败!", "")
+		return
+	}
+	// 添加返回用户头像
 	// 返回结果给用户
 	rData(0, "", HXresponse)
 
@@ -143,7 +171,7 @@ retrySendMsg:
 		// 写入数据表并发执行
 		engine, err := xorm.NewEngine("mysql", DATABASE_LOGIN)
 		if err != nil {
-			rData(-1, "写入聊天记录打开数据库出错!", err.Error())
+			fmt.Println("写入聊天记录打开数据库出错! 错误原因:" + err.Error())
 			return
 		}
 		roomTarget := cInfo.Target
@@ -151,21 +179,34 @@ retrySendMsg:
 		if cInfo.TargetType == "chatgroups" {
 			roomType = 2
 		}
+		timeInt64 := int64(cInfo.Ext.SendTime)
+		t := time.Unix(timeInt64, 0)
 		rencent := &RecentConcat{
 			RoomType: roomType,
 			UserName: cInfo.From,
 			TargetUserName: roomTarget[0],
 			IsTop: false,
+			LastMessage:cInfo.Msg.Msg,
+			LastMsgUpdated: t,
 		}
 		// 单聊写入单聊关系表  群聊忽略
 		// 单聊需要检测是否存在
 		// 检测是否已存在
-		has, isExistRencentErr := engine.Exist(rencent)
+		// 已存在更新发送内容和发送内容时间
+		has, isExistRencentErr := engine.Exist(&RecentConcat{TargetUserName:roomTarget[0],})
 		if has {
+			// 更新更新发送内容和发送内容时间
+			_, updateErr := engine.Id(cInfo.RecentId).Cols("last_message","last_msg_updated").Update(rencent)
+			if updateErr != nil {
+				// TODO: 出错写入日志
+				fmt.Printf("更新最后聊天记录失败,失败原因:%v",updateErr.Error())
+				return
+			}
 			return
 		}
 		// 如果不存在,rencent.isTop属性默认为false
 		if isExistRencentErr != nil {
+			// TODO: 出错写入日志
 			fmt.Printf("检测最近聊天是否存在失败,失败原因:%v",isExistRencentErr.Error())
 			return
 		}

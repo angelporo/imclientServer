@@ -124,11 +124,13 @@ func WriteGroupInfo (groupId string)  {
 	}
 
 	// 提取群消息数据
+	tokenType.Data[0].GroupAvatar = "/files/group/groupavatar.png"
 	engine, err := xorm.NewEngine("mysql", DATABASE_LOGIN)
 	if err != nil {
 		fmt.Printf("打开数据库出错: %v", err.Error())
 		return
 	}
+
 	_ , writeErr := engine.Insert(&tokenType.Data)
 	if writeErr != nil {
 		fmt.Printf("写入群组聊天详情出错: %v", writeErr.Error())

@@ -9,7 +9,7 @@ type MembersItem struct {
 
 // 最近聊天群信息 包括成员用户名列表
 type GroupMembersContent struct {
-	Id string
+	Id string `json:"id"`
 	Index int `xorm:"pk autoincr unique notnull" json:"-"`
 	Name string `xorm:"varchar(255)  notnull" json:"name"`
 	Description string `xorm:"varchar(255) " json:"description"`
@@ -23,12 +23,13 @@ type GroupMembersContent struct {
 	Maxusers int64 `xorm:"bigint notnull " json:"maxusers"`
 	// 现有成员数
 	Affiliations_count int64 `xorm:"binint notnull " json:"affiliations_count"`
-	Affiliations []MembersItem
+	Affiliations []MembersItem `json:"affiliations"`
 	 // 群主id
 	Owner string `xorm:"varchar(255) notnull " json:"owner"`
 	//群成员的环信 ID
 	Member string `xorm:"varchar(255) "`
-	Invite_need_confirm bool `xorm:"bool "`
+	Invite_need_confirm bool `xorm:"bool" json:"invite_need_confirm"`
+	GroupAvatar string `xorm:"varchar(255) notnull" json:"groupAvatar"`
 }
 
 // 获取群组详情 包括成员列表

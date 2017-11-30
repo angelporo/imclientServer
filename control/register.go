@@ -221,7 +221,7 @@ func GetAbleToken () (bool, error) {
 
 /** 用户注册 put 请求
  * 功能介绍 手机号检测(重号, 格式不对), 用户名(重名, 格式(225byte, 英文开头, 不能汉子))
- * 请求实例  http PUT http://localhost:8080/user mobile='18303403747' userName="liyuan" passWord="angel" NickName="会上树的猪"
+ * http PUT http://localhost:8080/user mobile='18303403747' userName="liyuan" passWord="angel" NickName="会上树的猪"
 **/
 func RegisterListen(c *gin.Context){
 	var (
