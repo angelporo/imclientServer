@@ -59,6 +59,15 @@ type AddSuccessResponse struct {
 	Entities []HXresponseContent
 }
 
+// 添加好友关系表
+type WillToBeFriend struct {
+	Id int64 `json:"id"`
+	Source string `xorm:"varchar(255) notnull" json:"sourceName"`
+	Target string `xorm:"varchar(255) notnull" json:"targetName"`
+	Index int64 `xorm:"notnull bigint autoincr"`
+	State int64 `json:"state" xorm:"bigint notnull"`
+}
+
 
 // http POST http://localhost:8080/addfriend userName="angelporo" friendName="angelporo1" userId="68"
 func AddFriendToUser (c *gin.Context) {
@@ -121,7 +130,7 @@ func AddFriendToUser (c *gin.Context) {
 		rData(-1, "添加好友打开数据库出错, 请重试!", err.Error())
 		return
 	}
-
+	// FIXME: 添加好友必须征求添加好友是否同意
 	// 插入之前先检测是否成为好友
 	has, err := engine.Table("user_relation_ship").Where("user_name = ?", requestBody.UserName).And("friend_user_name = ? ", requestBody.FriendName).Exist()
 	if err != nil {

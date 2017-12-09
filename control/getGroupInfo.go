@@ -9,7 +9,6 @@ type getGroupRequest struct {
 	GroupId string `json:"groupId"`
 }
 
-
 // 获取群组聊天详情
 // http POST http://localhost:8080/getgroupinfo groupId=33739229954049
 func GetGroupInfoByGroupId (c *gin.Context) {
@@ -32,7 +31,6 @@ func GetGroupInfoByGroupId (c *gin.Context) {
 		rData(-1, "获取群组详情绑定request参数错误", bindErr.Error())
 		return
 	}
-
 
 	// 获取群组详情信息
 	groupInfo, getGroupErr, statusStr := GetGroupMembersListById(request.GroupId)

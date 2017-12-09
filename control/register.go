@@ -40,7 +40,7 @@ type User struct {
 	Mobile string `xorm:"notnull"`
 	Age int `xorm:"int notnull"`
 	Sex int `xorm:"int notnull"`
-	Money int `xorm:"int notnull default 0"`
+	Money float64 `xorm:"double notnull default 0"`
 	Avatar string `xorm:"notnull"`
 	PassWord string `xorm:"notnull"`
 	Created time.Time `xorm:"created notnull"`
@@ -304,6 +304,7 @@ func RegisterListen(c *gin.Context){
 		new(UserRelationShip),
 		new(GroupRelationShip), // 群组聊天关系
 		new(RecentConcat),
+		new(WillToBeFriend), // 添加好友发送消息等待确认关系表
 		new(MembersItem))
 	if errA != nil {
 		c.JSON(200, gin.H{
@@ -367,14 +368,15 @@ func RegisterListen(c *gin.Context){
 	HuanxinResContent := HuanxinData.Entities
 	userUuid := HuanxinResContent[0].Uuid
 	// 数据没有任何问题, 插入数据库
+	var money float64 = 0.00
 	user := &User{
 		Name: paramJson.UserName,
 		Age: 26,
 		Mobile: paramJson.UserMobile,
 		PassWord: paramJson.PassWord,
-		Money: 0,
+		Money: money,
 		Sex: 1, // 默认性别
-		Avatar: "/static/default_avatar.png", // 默认头像为相对路径
+		Avatar: "/files/default_avatar.png", // 默认头像为相对路径
 		Uuid: userUuid,
 		Activated: true,
 	}

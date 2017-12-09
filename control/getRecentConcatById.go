@@ -99,8 +99,8 @@ func GetRecentConcatById (userName string, engine *xorm.Engine) ([]ChatRoomItem,
 	res := make([]ChatRoomItem, RecentSum)
 
 	for i := 0; i < RecentSum; i++ {
-		// TODO: RoomId是1 查询RoomId(userName)用户信息
-		// TODO: RoomId是2 查询群详情
+		// NOTE: RoomId是1 查询RoomId(userName)用户信息
+		// NOTE: RoomId是2 查询群详情
 		roomIdOrUserName := RecentConcatInfo[i].TargetUserName
 		roomType := RecentConcatInfo[i].RoomType
 		isTop := RecentConcatInfo[i].IsTop

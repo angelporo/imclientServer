@@ -5,6 +5,8 @@ import (
 	"imClientServer/control"
 	// "imClientServer/util"
 	"net/http"
+	"time"
+	"log"
 	// "log"
 )
 
@@ -27,6 +29,27 @@ func HuanxingTokenMiddleWare () gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+
+// 中间件中写入日志
+func Logger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		t := time.Now()
+
+		// before request
+
+		c.Next()
+
+		// after request
+		latency := time.Since(t)
+		log.Print(latency)
+
+		// access the status we are sending
+		status := c.Writer.Status()
+		log.Println(status)
+	}
+}
+
 
 func main() {
 	// Creates a router without any middleware by default
@@ -54,6 +77,8 @@ func main() {
 		r.POST("/addfriend", control.AddFriendToUser) // 给用户添加好友
 		r.POST("/creategroup", control.CreateGoup) // 用户创建群组聊天
 		r.POST("/getgroupinfo", control.GetGroupInfoByGroupId) // 获取用户群组聊天详情
+		r.POST("/sendimg", control.ListenSendImgMsg) // 发送图片接口
+		r.POST("/getusersInfo", control.GetUsersInfo) // 获取群成员信息接口
 	}
 	r.Run(":8080")
 }
