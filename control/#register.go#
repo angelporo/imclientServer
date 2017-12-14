@@ -54,7 +54,6 @@ type UserRelationShip struct {
 	UserId int64  `xorm:"notnull bigint"`
 	UserName string `xorm:"notnull varchar(255)"`
 	Friend_userName string `xorm:"notnull varchar(255)"`
-	MyNickName string `xormj:"notnull varchar(255)"`
 }
 
 // 环信返回结果type

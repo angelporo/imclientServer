@@ -39,6 +39,7 @@ type GroupRelationShip struct {
 	UserId int64 `xorm:"bigint notnull"`
 	GroupRoomId string `xorm:"varchar(14) notnull"`
 	GroupAvatar string `xorm:"varshar(255) notnull"`
+	MyNickName string `xormj:"notnull varchar(255)"`
 }
 
 
@@ -199,6 +200,7 @@ func CreateGoup (c *gin.Context) {
 		UserId: userId64,
 		GroupRoomId: HXresponse.Data["groupid"],
 		GroupAvatar: "/files/group/groupavatar.png",
+		MyNickName: creReqBody.Owner,
 	}
 	// 写入群组关系数据库
 	engine, openDbErr := xorm.NewEngine("mysql", DATABASE_LOGIN)

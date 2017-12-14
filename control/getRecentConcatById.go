@@ -71,6 +71,7 @@ type ApiRecentChatInfo struct{
 	RecentKey int64 `json:"recentKey"`
 	LastMessage string `json:"lastMsg"`
 	LastMsgUpdated time.Time `json:"lastMsgUpdated"`
+	UserNickName string `json:"userNickName"` // 用户群聊中昵称
 }
 
 
@@ -124,6 +125,11 @@ func GetRecentConcatById (userName string, engine *xorm.Engine) ([]ChatRoomItem,
 			_, err2 := engine.Table("group_members_content").Where("id = ?", roomIdOrUserName).Get(&res[i].GroupMembers.ChatGroup)
 			if err2 != nil {
 				return r, errors.New(err2.Error())
+			}
+			// 获取用户群聊中昵称
+			_, getNickNameErr := engine.Table("group_relation_ship").Where("user_name = ?", userName).And("group_room_id = ?", roomIdOrUserName).Cols("my_nick_name").Get(&res[i].GroupMembers.UserNickName)
+			if getNickNameErr != nil {
+				return r, errors.New(getNickNameErr.Error())
 			}
 		}
 		if roomType == users {
